@@ -237,6 +237,15 @@ table.p-detail tr.p-total td{font-weight:800;font-size:12px}
         </select>
       </div>
       <div id="commonVisit"><label class="f">拜訪對象</label><input type="text" id="visitTarget" placeholder="例：○○公司 王經理"></div>
+      <div id="intlExtraRow" class="full" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div><label class="f">匯率</label><input type="number" id="exRate" step="0.0001" min="0" placeholder="例：32.5"></div>
+          <div><label class="f">幣別</label>
+            <select id="exCur"><option>USD</option><option>JPY</option><option>CNY</option></select>
+          </div>
+          <div><label class="f">擬辦事項</label><input type="text" id="planItem" list="summaryOptions" placeholder="可下拉或自填"></div>
+        </div>
+      </div>
       <div id="commonDates" class="full">
         <div class="grid" style="margin:0">
           <div><label class="f">出差期間（起）</label><input type="date" id="dateStart" onchange="calcDays()"></div>
@@ -268,7 +277,7 @@ table.p-detail tr.p-total td{font-weight:800;font-size:12px}
     </div>
     <button class="btn-add" onclick="addRow('domestic')">＋ 新增一天</button>
     <p style="margin-top:10px;font-size:12.5px;color:var(--danger);font-weight:600;line-height:1.5">
-      ⚠ 膳雜費已按日支標準認列（高級職員 700／普通職員 600），餐飲發票請勿打公司統編、勿黏貼、勿再報帳，違者遭剔除補稅處罰。
+      ⚠ 出差人的膳什費已按日支標準認列（高級職員 700／普通職員 600），出差期間的餐飲發票請勿打公司統編報帳、也不要黏貼在出差表上再報帳，以免被國稅局查到補稅處罰。
     </p>
     <div class="total-bar"><span class="lbl">合計金額</span><span class="amt" id="totalDomestic">0</span></div>
   </div>
@@ -341,8 +350,8 @@ table.p-detail tr.p-total td{font-weight:800;font-size:12px}
 
 <!-- 動作列 -->
 <div class="action-bar"><div class="inner">
-  <button class="btn btn-print" onclick="doPrint()">預覽／列印 A4</button>
-  <button class="btn btn-submit" id="btnSubmit" onclick="submitForm()">送出至事務所</button>
+  <button class="btn btn-print" onclick="doPrint()">列印自己留存</button>
+  <button class="btn btn-submit" id="btnSubmit" onclick="submitForm()">傳送給事務所</button>
 </div></div>
 
 <div id="toast"></div>
@@ -362,20 +371,20 @@ const CITY_OPTIONS = '<option value=""></option>'+CITIES.map(c=>'<option>'+c+'</
 /* 國外日支數額表（USD/日，114/1/1 生效，行政院院授主預字第1130102991、1130103252號函）
    義大利羅馬有季節分段：4/1–10/31=460、11/1–3/31=373，依明細列月日自動判斷 */
 const PERDIEM = {
-  '日本東京':301, '日本橫濱':288, '泰國曼谷':271, '泰國清邁':170,
-  '馬來西亞吉隆坡':246, '新加坡':445,
-  '義大利羅馬':{summer:460, winter:373},
-  '愛沙尼亞塔林':303, '匈牙利布達佩斯':261,
-  '中國北京':237, '中國上海':268, '中國哈爾濱':166, '中國西安':178,
-  '中國成都':200, '中國重慶':182, '中國深圳':213, '中國廣州':205,
-  '中國廈門':198, '香港':269, '澳門':167
+  '東京':301, '橫濱':288, '曼谷':271, '清邁':170,
+  '吉隆坡':246, '新加坡':445,
+  '羅馬':{summer:460, winter:373},
+  '塔林':303, '布達佩斯':261,
+  '北京':237, '上海':268, '哈爾濱':166, '西安':178,
+  '成都':200, '重慶':182, '深圳':213, '廣州':205,
+  '廈門':198, '香港':269, '澳門':167
 };
 const DEST_OPTIONS = '<option value=""></option>'+
   Object.keys(PERDIEM).map(k=>'<option>'+k+'</option>').join('')+
   '<option>其他</option>';
 
 /* 幣別與憑證種類 */
-const CUR_OPTIONS = '<option value=""></option><option>新台幣</option><option>外幣</option>';
+const CUR_OPTIONS = '<option value=""></option><option>TWD</option><option>USD</option><option>JPY</option><option>CNY</option>';
 const VOUCHERS = ['機票','統一發票','車資憑證','住宿憑證','其他'];
 const VOUCHER_OPTIONS = '<option value=""></option>'+VOUCHERS.map(x=>'<option>'+x+'</option>').join('');
 
@@ -409,6 +418,7 @@ function switchType(t){
   document.getElementById('cardDomestic').style.display = t==='domestic' ? '' : 'none';
   document.getElementById('cardIntl').style.display = t==='intl' ? '' : 'none';
   document.getElementById('commonVisit').style.display = t==='domestic' ? '' : 'none';
+  document.getElementById('intlExtraRow').style.display = t==='intl' ? '' : 'none';
   document.getElementById('companyRow').classList.toggle('full', t==='domestic');
   document.getElementById('companyRow').classList.toggle('full', t==='domestic');
   document.getElementById('uiTitle').textContent = t==='domestic' ? '出差旅費報告表' : '國外出差費用報支表';
@@ -488,7 +498,7 @@ function applyPerDiem(tr){
     amt.readOnly = true; cur.disabled = true;
     amt.style.background = '#EFF3F6'; amt.style.color = 'var(--text-sub)';
     amt.value = rate === null ? '' : rate;
-    cur.value = '外幣';
+    cur.value = 'USD';
     amt.title = '依到達地自動帶入日支標準（USD），不可修改';
   }
   recalc();
@@ -522,14 +532,14 @@ function recalc(){
   });
   document.getElementById('totalDomestic').textContent = fmt(domesticTotal);
 
-  // 國外：明細四費用依幣別分流合計（新台幣直加、外幣以原幣加總）
+  // 國外：明細四費用依幣別分流合計（TWD直加、外幣以原幣加總）
   let ntdTotal = 0, fxTotal = 0;
   document.querySelectorAll('#tblIntl tbody tr').forEach(tr=>{
     ['transport','lodging','meals','office'].forEach(k=>{
       const amt = v(tr.querySelector('.i-'+k+'-amt'));
       if(amt === 0) return;
-      if(tr.querySelector('.i-'+k+'-cur').value === '外幣') fxTotal += amt;
-      else ntdTotal += amt;
+      if(tr.querySelector('.i-'+k+'-cur').value === 'TWD') ntdTotal += amt;
+      else fxTotal += amt;
     });
   });
   document.getElementById('totalIntl').textContent = fmt(ntdTotal);
@@ -577,6 +587,9 @@ function collect(){
     companyName: document.getElementById('companyName').value.trim(),
     taxId: document.getElementById('taxId').value.trim(),
     visitTarget: document.getElementById('visitTarget').value.trim(),
+    exRate: document.getElementById('exRate').value,
+    exCur: document.getElementById('exCur').value,
+    planItem: document.getElementById('planItem').value.trim(),
     filler: document.getElementById('filler').value.trim(),
     title: document.getElementById('title').value.trim(),
     dateStart: document.getElementById('dateStart').value,
@@ -658,11 +671,11 @@ async function submitForm(){
       headers:{'Content-Type':'text/plain'},
       body: JSON.stringify(p)
     });
-    toast('已送出至事務所，感謝您！','ok');
+    toast('已傳送給事務所，感謝您！','ok');
   }catch(err){
     toast('送出失敗：'+err,'err');
   }finally{
-    btn.disabled = false; btn.textContent = '送出至事務所';
+    btn.disabled = false; btn.textContent = '傳送給事務所';
   }
 }
 
@@ -738,11 +751,11 @@ function doPrint(){
       '<div class="rb">・請黏貼：車票票根、計程車收據、ETC通行費收據、停車費收據、住宿費收據/發票、其他憑證。</div>'+
       '<div class="rb">・<b>一人公司請上傳公司大章印鑑</b>（無部門主管者，主管欄以公司大章代之）。</div>'+
       '<div class="rw">⚠ 注意：請勿黏貼其他進項發票，以免重複扣抵受國稅局處罰。</div>'+
-      '<div class="rw">⚠ 膳雜費已按日支標準認列，餐飲發票不得打統編、不得黏貼、不得重複報帳。</div>'+
+      '<div class="rw">⚠ 膳什費已按日支標準認列，出差期間餐飲發票請勿打統編、勿黏貼再報帳，以免遭國稅局補稅處罰。</div>'+
       '</div>';
   }else{
     const x = p.extra || {};
-    const curTag = c => c==='外幣' ? '外幣' : (c==='新台幣' ? '新台幣' : '');
+    const curTag = c => esc(c||'');
     const cell = (cur,amt) => '<td class="c">'+curTag(cur)+'</td><td class="n">'+(amt?fmt(amt):'')+'</td>';
     const detailRows = p.rows.map(r=>{
       const md = r.date ? Number(r.date.split('-')[1])+'/'+Number(r.date.split('-')[2]) : '';
@@ -775,6 +788,8 @@ function doPrint(){
       '<tr><th>統一編號</th><td>'+esc(p.common.taxId)+'</td><th>出差期間</th><td>'+
         rocDate(p.common.dateStart)+' 至 '+rocDate(p.common.dateEnd)+
         (p.common.days?'（共 '+p.common.days+' 天）':'')+'</td></tr>'+
+      '<tr><th>匯率</th><td>'+esc(p.common.exRate)+'</td><th>幣別</th><td>'+esc(p.common.exCur)+'</td></tr>'+
+      '<tr><th>擬辦事項</th><td colspan="3">'+esc(p.common.planItem)+'</td></tr>'+
       '</table>'+
       '<div style="font-weight:800;font-size:13px;margin:6px 0 3px;text-align:center">出差費用明細</div>'+
       '<table class="p-detail"><thead>'+
@@ -800,6 +815,7 @@ function doPrint(){
       '</thead><tbody>'+voucherRows+'</tbody></table>'+
       '<div class="p-signs" style="margin-top:14px">'+
       '<div class="p-sign"><div class="st">部門主管</div>'+stampImg('manager')+'<div class="line"></div></div>'+
+      '<div class="p-sign"><div class="st">會計審核</div><div class="line"></div></div>'+
       '<div class="p-sign"><div class="st">出差人</div>'+stampImg('traveler')+'<div class="line"></div></div>'+
       '</div>'+
       '<div class="p-note" style="text-align:center">備註：簽核順序：出差人 → 部門主管</div>'+
