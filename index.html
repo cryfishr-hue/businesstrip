@@ -28,7 +28,7 @@ body{
 }
 
 /* ===== 螢幕版面 ===== */
-.wrap{max-width:860px;margin:0 auto;padding:24px 16px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 16px}
 header.site{
   text-align:center;margin-bottom:24px;
 }
@@ -122,6 +122,24 @@ table.detail td.del{text-align:center}
 .total-bar .amt{font-size:24px;font-weight:800;color:var(--accent)}
 .total-bar .amt::before{content:"NT$ ";font-size:15px;font-weight:600}
 
+/* 交通明細（自行開車） */
+#tblDomestic{table-layout:fixed;min-width:820px}
+.segs{overflow-x:auto;padding-bottom:4px}
+#tblDomestic thead th:first-child{width:136px!important}
+tr.seg-wrap td{background:#FBF6EC;padding:8px 10px 10px;border-bottom:2px solid #F5D08A}
+table.detail tbody tr.seg-wrap:hover{background:transparent}
+.seg-head{font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px}
+.seg{display:flex;flex-wrap:nowrap;gap:6px;align-items:flex-end;padding:6px 0;border-bottom:1px dashed var(--border)}
+.seg .f{display:flex;flex-direction:column;gap:2px;font-size:14px;color:var(--text-sub);font-weight:600;flex:0 0 auto}
+.seg input,.seg select{font-size:14px;padding:6px 6px;border-radius:6px}
+.seg input:disabled{background:#EFF3F6;opacity:.6}
+.seg .gmap{flex:0 0 auto;font-size:14px;font-weight:600;color:var(--primary-dark);border:1.5px solid var(--primary);border-radius:8px;padding:6px 10px;text-decoration:none;white-space:nowrap;background:#fff}
+.seg .gmap:hover{background:var(--primary-light)}
+.seg .s-sum{font-weight:700;color:var(--primary-dark);min-width:72px;text-align:right;padding-bottom:7px;white-space:nowrap;font-size:14px}
+.btn-seg{margin-top:8px;border:1.5px dashed var(--primary);background:#fff;color:var(--primary-dark);font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit}
+.btn-seg:hover{background:var(--primary-light)}
+.drive-hint{margin-top:10px;padding:10px 14px;border-radius:10px;background:#FFF1D6;font-size:14px;line-height:1.75;color:var(--text)}
+
 /* 印鑑上傳 */
 .stamp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .stamp-box{
@@ -140,7 +158,7 @@ table.detail td.del{text-align:center}
   position:fixed;bottom:0;left:0;right:0;background:#fff;
   box-shadow:0 -2px 12px rgba(42,52,65,.1);padding:12px 16px;z-index:50;
 }
-.action-bar .inner{max-width:860px;margin:0 auto;display:flex;gap:10px;justify-content:flex-end}
+.action-bar .inner{max-width:1000px;margin:0 auto;display:flex;gap:10px;justify-content:flex-end}
 .btn{
   border:none;border-radius:8px;padding:11px 26px;font-size:15px;font-weight:700;
   cursor:pointer;font-family:inherit;transition:all .15s;letter-spacing:.05em;
@@ -202,7 +220,7 @@ table.p-detail tr.p-total td{font-weight:800;font-size:12px}
 }
 .p-receipts{
   border:1.5px dashed #999;border-radius:8px;padding:12px;margin-top:16px;
-  min-height:300px;
+  min-height:110px;
 }
 .p-receipts .rt{font-size:13px;font-weight:700;margin-bottom:6px}
 .p-receipts .rb{font-size:11px}
@@ -279,6 +297,10 @@ table.p-detail tr.p-total td{font-weight:800;font-size:12px}
     <p style="margin-top:10px;font-size:12.5px;color:var(--danger);font-weight:600;line-height:1.5">
       ⚠ 出差人的膳什費已按日支標準認列（高級職員 700／普通職員 600），出差期間的餐飲發票請勿打公司統編報帳、也不要黏貼在出差表上再報帳，以免被國稅局查到補稅處罰。
     </p>
+    <p class="drive-hint">🚗 自己開車的油資，下面兩種算法選一種，不能兩種都報：<br>
+      A. 里程計算：用 Google 地圖查公里數，每公里 8 元（本事務所建議標準），再加上 ETC。<br>
+      B. 實報實銷：加油發票金額（發票要打公司統編），再加上 ETC。<br>
+      ETC 金額請照遠通電收通行費單據上的金額填寫，單據請一併附上。</p>
     <div class="total-bar"><span class="lbl">合計金額</span><span class="amt" id="totalDomestic">0</span></div>
   </div>
 
@@ -383,6 +405,10 @@ const DEST_OPTIONS = '<option value=""></option>'+
   Object.keys(PERDIEM).map(k=>'<option>'+k+'</option>').join('')+
   '<option>其他</option>';
 
+/* 交通明細：交通方式與自行開車里程單價（8 元為本事務所建議標準，非法定） */
+const MODES = ['自己開車','火車','高鐵','客運','捷運','計程車','飛機','其他'];
+const MILE_RATE = 8;
+
 /* 幣別與憑證種類 */
 const CUR_OPTIONS = '<option value=""></option><option>TWD</option><option>USD</option><option>JPY</option><option>CNY</option>';
 const VOUCHERS = ['機票','統一發票','車資憑證','住宿憑證','其他'];
@@ -430,12 +456,15 @@ function addRow(type){
   const tb = document.querySelector(type==='domestic' ? '#tblDomestic tbody' : '#tblIntl tbody');
   const tr = document.createElement('tr');
   if(type==='domestic'){
+    tr.className = 'day-row';
     tr.innerHTML =
       '<td><input type="date" class="d-date"></td>'+
       '<td><select class="d-city">'+CITY_OPTIONS+'</select></td>'+
       '<td><input type="text" class="d-summary" list="summaryOptions" placeholder="事由，可下拉或自填"></td>'+
-      ['transport','lodging'].map(c=>
-        '<td><input type="number" min="0" class="d-'+c+'" oninput="recalc()"></td>').join('')+
+      '<td><input type="number" class="d-transport" value="0" readonly '+
+        'style="background:#EFF3F6;color:var(--text-sub);cursor:not-allowed" '+
+        'title="由下方交通明細自動加總"></td>'+
+      '<td><input type="number" min="0" class="d-lodging" oninput="recalc()"></td>'+
       '<td><input type="number" class="d-meals" value="'+mealRate()+'" readonly '+
         'style="background:#EFF3F6;color:var(--text-sub);cursor:not-allowed" '+
         'title="依職務自動帶入日支標準，不可修改"></td>'+
@@ -459,8 +488,82 @@ function addRow(type){
       '<td class="del"><button class="btn-del" onclick="delRow(this)">✕</button></td>';
   }
   tb.appendChild(tr);
+  if(type==='domestic'){
+    const sw = document.createElement('tr');
+    sw.className = 'seg-wrap';
+    sw.innerHTML = '<td colspan="10"><div class="seg-head">↳ 交通明細（一段交通填一行，上面的交通費會自動加總）</div>'+
+      '<div class="segs"></div><button class="btn-seg" onclick="addSeg(this)">＋ 新增一段交通</button></td>';
+    tb.appendChild(sw);
+  }
+  return tr;
 }
-function delRow(btn){ btn.closest('tr').remove(); renumberAcct(); recalc(); }
+function delRow(btn){
+  const tr = btn.closest('tr');
+  const next = tr.nextElementSibling;
+  if(tr.classList.contains('day-row') && next && next.classList.contains('seg-wrap')) next.remove();
+  tr.remove(); renumberAcct(); recalc();
+}
+
+/* ===== 交通明細（一段一行） ===== */
+function addSeg(btn){
+  const box = btn.closest('td').querySelector('.segs');
+  const d = document.createElement('div');
+  d.className = 'seg';
+  d.innerHTML =
+    '<div class="f" style="width:88px">交通方式<select class="s-mode" onchange="segChange(this)">'+MODES.map(m=>'<option>'+m+'</option>').join('')+'</select></div>'+
+    '<div class="f" style="width:100px">起點<input type="text" class="s-from" oninput="segChange(this)"></div>'+
+    '<div class="f" style="width:100px">訖點<input type="text" class="s-to" oninput="segChange(this)"></div>'+
+    '<a class="gmap s-drive" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving">查距離 ↗</a>'+
+    '<div class="f s-drive" style="width:106px">算法<select class="s-how" onchange="segChange(this)"><option value="A">A 里程計算</option><option value="B">B 實報實銷</option></select></div>'+
+    '<div class="f s-drive" style="width:64px">公里數<input type="number" min="0" class="s-km" oninput="segChange(this)"></div>'+
+    '<div class="f s-drive" style="width:84px">加油發票<input type="number" min="0" class="s-fuel" oninput="segChange(this)"></div>'+
+    '<div class="f s-drive" style="width:126px">ETC<input type="number" min="0" class="s-etc" placeholder="請填通行費金額" oninput="segChange(this)"></div>'+
+    '<div class="f s-fare" style="width:96px">車資<input type="number" min="0" class="s-fare-amt" oninput="segChange(this)"></div>'+
+    '<div class="s-sum">= 0 元</div>'+
+    '<button class="btn-del" title="刪除這一段" onclick="delSeg(this)">✕</button>';
+  box.appendChild(d);
+  segChange(d.querySelector('.s-mode'));
+  return d;
+}
+function delSeg(btn){ btn.closest('.seg').remove(); recalc(); }
+function segIsDrive(seg){ return seg.querySelector('.s-mode').value === '自己開車'; }
+function segAmount(seg){
+  if(!segIsDrive(seg)) return v(seg.querySelector('.s-fare-amt'));
+  const base = seg.querySelector('.s-how').value === 'A'
+    ? v(seg.querySelector('.s-km')) * MILE_RATE
+    : v(seg.querySelector('.s-fuel'));
+  return base + v(seg.querySelector('.s-etc'));
+}
+function segChange(el){
+  const seg = el.closest('.seg');
+  const drive = segIsDrive(seg);
+  seg.querySelectorAll('.s-drive').forEach(x=>{ x.style.display = drive ? '' : 'none'; });
+  seg.querySelector('.s-fare').style.display = drive ? 'none' : '';
+  const how = seg.querySelector('.s-how').value;
+  seg.querySelector('.s-km').disabled = how !== 'A';
+  seg.querySelector('.s-fuel').disabled = how !== 'B';
+  seg.querySelector('.gmap').href = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+
+    encodeURIComponent(seg.querySelector('.s-from').value.trim())+'&destination='+encodeURIComponent(seg.querySelector('.s-to').value.trim());
+  recalc();
+}
+function collectSegs(dayTr){
+  const wrap = dayTr.nextElementSibling;
+  if(!wrap || !wrap.classList.contains('seg-wrap')) return [];
+  return [...wrap.querySelectorAll('.seg')].map(seg=>{
+    const drive = segIsDrive(seg), how = seg.querySelector('.s-how').value;
+    return {
+      mode: seg.querySelector('.s-mode').value,
+      from: seg.querySelector('.s-from').value.trim(),
+      to: seg.querySelector('.s-to').value.trim(),
+      method: drive ? (how==='A' ? '里程計算' : '實報實銷') : '',
+      km: drive && how==='A' ? v(seg.querySelector('.s-km')) : 0,
+      fuel: drive && how==='B' ? v(seg.querySelector('.s-fuel')) : 0,
+      etc: drive ? v(seg.querySelector('.s-etc')) : 0,
+      fare: drive ? 0 : v(seg.querySelector('.s-fare-amt')),
+      amount: segAmount(seg)
+    };
+  });
+}
 
 /* 核算表列：序號自動編 DEX-00001 起 */
 function addAcctRow(){
@@ -524,7 +627,17 @@ function fmt(n){ return n.toLocaleString('zh-TW'); }
 function recalc(){
   // 國內：每列小計＋合計
   let domesticTotal = 0;
-  document.querySelectorAll('#tblDomestic tbody tr').forEach(tr=>{
+  document.querySelectorAll('#tblDomestic tbody tr.day-row').forEach(tr=>{
+    const wrap = tr.nextElementSibling;
+    let trans = 0;
+    if(wrap && wrap.classList.contains('seg-wrap')){
+      wrap.querySelectorAll('.seg').forEach(seg=>{
+        const a = segAmount(seg);
+        seg.querySelector('.s-sum').textContent = '= '+fmt(a)+' 元';
+        trans += a;
+      });
+    }
+    tr.querySelector('.d-transport').value = trans;
     const sub = ['transport','lodging','meals','parking','other']
       .reduce((a,c)=>a+v(tr.querySelector('.d-'+c)),0);
     tr.querySelector('.sub').textContent = fmt(sub);
@@ -599,8 +712,9 @@ function collect(){
   };
   const rows = [];
   if(currentType==='domestic'){
-    document.querySelectorAll('#tblDomestic tbody tr').forEach(tr=>{
+    document.querySelectorAll('#tblDomestic tbody tr.day-row').forEach(tr=>{
       rows.push({
+        segments: collectSegs(tr),
         date: tr.querySelector('.d-date').value,
         city: tr.querySelector('.d-city').value,
         summary: tr.querySelector('.d-summary').value.trim(),
@@ -740,7 +854,7 @@ function doPrint(){
       '<td class="n">'+fmt(sums.transport)+'</td><td class="n">'+fmt(sums.lodging)+'</td>'+
       '<td class="n">'+fmt(sums.meals)+'</td><td class="n">'+fmt(sums.parking)+'</td>'+
       '<td class="n">'+fmt(sums.other)+'</td><td class="n">'+fmt(p.common.total)+'</td></tr>'+
-      '</tbody></table>'+
+      '</tbody></table>'+segPrintHTML(p.rows)+
       '<div class="p-signs">'+
       '<div class="p-sign"><div class="st">部門主管</div>'+stampImg('manager')+'<div class="line"></div></div>'+
       '<div class="p-sign"><div class="st">會計審核</div><div class="line"></div></div>'+
@@ -819,7 +933,7 @@ function doPrint(){
       '<div class="p-sign"><div class="st">出差人</div>'+stampImg('traveler')+'<div class="line"></div></div>'+
       '</div>'+
       '<div class="p-note" style="text-align:center">備註：簽核順序：出差人 → 部門主管</div>'+
-      '<div class="p-receipts" style="min-height:160px">'+
+      '<div class="p-receipts">'+
       '<div class="rt">📎 出差單據黏貼處 (Receipts)</div>'+
       '<div class="rb">・請黏貼：機票／登機證、交通費收據、住宿費收據/發票、其他憑證（電話費、機場服務費等）。</div>'+
       '<div class="rb">・<b>一人公司請上傳公司大章印鑑</b>（無部門主管者，主管欄以公司大章代之）。</div>'+
@@ -827,6 +941,37 @@ function doPrint(){
       '</div>';
   }
   window.print();
+}
+
+function segPrintHTML(rows){
+  const segs = [];
+  rows.forEach(r=>(r.segments||[]).forEach(s=>segs.push(Object.assign({date:r.date}, s))));
+  if(!segs.length) return '';
+  const md = d => d ? Number(d.split('-')[1])+'/'+Number(d.split('-')[2]) : '';
+  const hasDrive = segs.some(s=>s.mode==='自己開車'), hasFare = segs.some(s=>s.mode!=='自己開車');
+  const body = segs.map(s=>{
+    const drive = s.mode==='自己開車';
+    const base = drive ? (s.method==='里程計算' ? s.km*MILE_RATE : s.fuel) : s.fare;
+    return '<tr><td class="c">'+md(s.date)+'</td><td class="c">'+esc(s.mode)+'</td>'+
+      '<td>'+esc(s.from)+' → '+esc(s.to)+'</td>'+
+      '<td class="c">'+(drive ? s.method : '—')+'</td>'+
+      '<td class="n">'+(drive && s.method==='里程計算' ? fmt(s.km)+' km' : '—')+'</td>'+
+      '<td class="n">'+fmt(base)+'</td>'+
+      '<td class="n">'+(drive ? fmt(s.etc) : '—')+'</td>'+
+      '<td class="n">'+fmt(s.amount)+'</td></tr>';
+  }).join('');
+  const lines = [];
+  if(hasFare) lines.push('・上列火車、客運、捷運、計程車車資及高鐵當日往返車資，確實是因公出差所支付，由經手人證明。');
+  if(hasDrive){
+    lines.push('・里程依 Google 地圖路線計算，每公里以新臺幣 8 元計（本事務所建議標準）。');
+    lines.push('・實報實銷者，請檢附開立本公司統一編號之加油發票，並於營業稅申報時提供。');
+    lines.push('・上列 ETC 通行費，確實是因公出差駕駛自用汽車行經高速公路電子收費車道所支付，參見ETC收據。');
+  }
+  return '<div style="font-weight:800;font-size:13px;margin:8px 0 3px;text-align:center">交通明細暨自行開車里程紀錄表</div>'+
+    '<table class="p-detail"><thead><tr><th style="width:46px">月　日</th><th style="width:64px">交通方式</th><th>起點 → 訖點</th>'+
+    '<th style="width:60px">算法</th><th style="width:58px">公里數</th><th style="width:74px">里程／加油<br>／車資</th>'+
+    '<th style="width:52px">ETC</th><th style="width:62px">金額</th></tr></thead><tbody>'+body+'</tbody></table>'+
+    '<div class="p-note" style="margin-bottom:6px">'+lines.join('<br>')+'</div>';
 }
 
 function firmName(p){
